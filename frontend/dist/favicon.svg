@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="radarBg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0e1726"/>
+      <stop offset="100%" stop-color="#050811"/>
+    </radialGradient>
+    <linearGradient id="sweepBeam" x1="50%" y1="50%" x2="90%" y2="20%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.9"/>
+      <stop offset="70%" stop-color="#059669" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="emeraldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Container Base -->
+  <rect width="128" height="128" rx="28" fill="url(#radarBg)"/>
+  <rect width="128" height="128" rx="28" fill="none" stroke="#10b981" stroke-width="2.5" stroke-opacity="0.35"/>
+
+  <!-- Radar PPI Rings -->
+  <circle cx="64" cy="64" r="50" fill="none" stroke="#10b981" stroke-width="1.8" stroke-opacity="0.3"/>
+  <circle cx="64" cy="64" r="34" fill="none" stroke="#10b981" stroke-width="1.8" stroke-opacity="0.5"/>
+  <circle cx="64" cy="64" r="18" fill="none" stroke="#10b981" stroke-width="1.8" stroke-opacity="0.75"/>
+
+  <!-- Crosshairs -->
+  <line x1="64" y1="12" x2="64" y2="116" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.3" stroke-dasharray="3 3"/>
+  <line x1="12" y1="64" x2="116" y2="64" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.3" stroke-dasharray="3 3"/>
+
+  <!-- Rotating Sweep Beam -->
+  <path d="M64 64 L102 30 A50 50 0 0 0 64 14 Z" fill="url(#sweepBeam)"/>
+  <line x1="64" y1="64" x2="102" y2="30" stroke="#34d399" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Target Blip with Glow -->
+  <circle cx="86" cy="42" r="5" fill="#34d399" filter="url(#emeraldGlow)"/>
+  <circle cx="86" cy="42" r="9" fill="none" stroke="#10b981" stroke-width="1.5" stroke-opacity="0.6"/>
+
+  <!-- Secondary Blip -->
+  <circle cx="42" cy="80" r="3.5" fill="#10b981" fill-opacity="0.8"/>
+
+  <!-- Center Receiver Cursor -->
+  <circle cx="64" cy="64" r="4.5" fill="#10b981"/>
+  <circle cx="64" cy="64" r="8" fill="none" stroke="#34d399" stroke-width="1.5"/>
+</svg>
