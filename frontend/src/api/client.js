@@ -1,6 +1,30 @@
-const API_BASE = '/api'
+import {
+  Orchestrator,
+  runBenchmark as localRunBenchmark,
+} from '../sim/simulatorEngine.js'
 
-async function fetchJSON(url, options = {}, timeoutMs = 12000) {
+const API_BASE = '/api'
+let isLocalFallback = false
+const localOrchestrator = new Orchestrator({ scenario: 'cold_start' })
+let localAutoRunInterval = null
+const localListeners = new Set()
+
+function broadcastLocalState() {
+  const state = localOrchestrator.state()
+  for (const listener of localListeners) {
+    try {
+      listener(state)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+}
+
+async function fetchWithFallback(url, options = {}, timeoutMs = 8000) {
+  if (isLocalFallback) {
+    return null
+  }
+
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -11,6 +35,13 @@ async function fetchJSON(url, options = {}, timeoutMs = 12000) {
       ...options,
     })
     clearTimeout(id)
+
+    // Handle 405 (Method Not Allowed on static hosting) or 404 by falling back
+    if (res.status === 405 || res.status === 404) {
+      console.warn(`[SHRAVAN] Backend returned HTTP ${res.status} for ${url}. Activating in-browser cognitive simulation engine.`)
+      isLocalFallback = true
+      return null
+    }
 
     if (!res.ok) {
       let errorDetail = `HTTP ${res.status}`
@@ -27,70 +58,153 @@ async function fetchJSON(url, options = {}, timeoutMs = 12000) {
     return await res.json()
   } catch (err) {
     clearTimeout(id)
-    if (err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs / 1000}s`)
+    if (
+      err.message?.includes('Failed to fetch') ||
+      err.message?.includes('NetworkError') ||
+      err.message?.includes('Connection refused') ||
+      err.name === 'TypeError' ||
+      err.name === 'AbortError'
+    ) {
+      console.warn(`[SHRAVAN] Backend service unreachable (${err.message}). Activating in-browser cognitive simulation engine.`)
+      isLocalFallback = true
+      return null
     }
     throw err
   }
 }
 
 export async function getScenarios() {
-  return fetchJSON('/scenarios')
+  const data = await fetchWithFallback('/scenarios')
+  if (data !== null) return data
+  return [
+    'cold_start',
+    'periodic',
+    'frequency_agile',
+    'spatially_scanning',
+    'multiple_emitters',
+    'sudden_threat',
+    'dynamic_environment',
+  ]
 }
 
 export async function initSim(config) {
-  return fetchJSON('/sim/init', {
-    method: 'POST',
-    body: JSON.stringify(config),
-  })
-}
-
-export async function resetSim(config) {
-  return fetchJSON('/sim/reset', {
+  const data = await fetchWithFallback('/sim/init', {
     method: 'POST',
     body: JSON.stringify(config || {}),
   })
+  if (data !== null) return data
+
+  localOrchestrator.reset(config || {})
+  localOrchestrator.running = false
+  broadcastLocalState()
+  return localOrchestrator.state()
+}
+
+export async function resetSim(config) {
+  const data = await fetchWithFallback('/sim/reset', {
+    method: 'POST',
+    body: JSON.stringify(config || {}),
+  })
+  if (data !== null) return data
+
+  if (localAutoRunInterval) {
+    clearInterval(localAutoRunInterval)
+    localAutoRunInterval = null
+  }
+  localOrchestrator.reset(config || {})
+  localOrchestrator.running = false
+  broadcastLocalState()
+  return localOrchestrator.state()
 }
 
 export async function stepSim(numSteps = 1) {
-  return fetchJSON('/sim/step', {
+  const data = await fetchWithFallback('/sim/step', {
     method: 'POST',
     body: JSON.stringify({ num_steps: numSteps }),
   })
+  if (data !== null) return data
+
+  let lastState = null
+  for (let i = 0; i < numSteps; i++) {
+    lastState = localOrchestrator.step()
+  }
+  broadcastLocalState()
+  return lastState || localOrchestrator.state()
 }
 
 export async function runSim(numSteps = 50) {
-  return fetchJSON('/sim/run', {
+  const data = await fetchWithFallback('/sim/run', {
     method: 'POST',
     body: JSON.stringify({ num_steps: numSteps }),
   })
+  if (data !== null) return data
+
+  let lastState = null
+  for (let i = 0; i < numSteps; i++) {
+    lastState = localOrchestrator.step()
+  }
+  broadcastLocalState()
+  return lastState || localOrchestrator.state()
 }
 
 export async function getSimState() {
-  return fetchJSON('/sim/state')
+  const data = await fetchWithFallback('/sim/state')
+  if (data !== null) return data
+  return localOrchestrator.state()
 }
 
 export async function startAutoRun() {
-  return fetchJSON('/sim/start', { method: 'POST' })
+  const data = await fetchWithFallback('/sim/start', { method: 'POST' })
+  if (data !== null) return data
+
+  localOrchestrator.running = true
+  if (!localAutoRunInterval) {
+    localAutoRunInterval = setInterval(() => {
+      if (localOrchestrator.running) {
+        localOrchestrator.step()
+        broadcastLocalState()
+      }
+    }, 150)
+  }
+  return { status: 'started' }
 }
 
 export async function stopAutoRun() {
-  return fetchJSON('/sim/stop', { method: 'POST' })
+  const data = await fetchWithFallback('/sim/stop', { method: 'POST' })
+  if (data !== null) return data
+
+  localOrchestrator.running = false
+  if (localAutoRunInterval) {
+    clearInterval(localAutoRunInterval)
+    localAutoRunInterval = null
+  }
+  broadcastLocalState()
+  return { status: 'stopped' }
 }
 
 export async function getTechnicalInspector() {
-  return fetchJSON('/inspector/technical')
+  const data = await fetchWithFallback('/inspector/technical')
+  if (data !== null) return data
+  return localOrchestrator.inspectorState()
 }
 
 export async function getEmitterInspector() {
-  return fetchJSON('/inspector/emitter')
+  const data = await fetchWithFallback('/inspector/emitter')
+  if (data !== null) return data
+  return localOrchestrator.emitterInspector()
 }
 
 export async function runBenchmark(config) {
-  return fetchJSON('/benchmark', {
-    method: 'POST',
-    body: JSON.stringify(config),
-  }, 30000) // benchmarks can take a few seconds
+  const data = await fetchWithFallback(
+    '/benchmark',
+    {
+      method: 'POST',
+      body: JSON.stringify(config || {}),
+    },
+    30000
+  )
+  if (data !== null) return data
+  return localRunBenchmark(config || {})
 }
 
 export function connectWebSocket({ onMessage, onOpen, onClose, onError }) {
@@ -98,6 +212,27 @@ export function connectWebSocket({ onMessage, onOpen, onClose, onError }) {
   let isClosedManually = false
   let reconnectTimer = null
   let retryCount = 0
+
+  const listener = (state) => {
+    if (onMessage) onMessage(state)
+  }
+
+  // If already in local fallback mode, register listener and emit initial state
+  if (isLocalFallback) {
+    localListeners.add(listener)
+    setTimeout(() => {
+      if (onOpen) onOpen({ type: 'open' })
+      if (onMessage) onMessage(localOrchestrator.state())
+    }, 40)
+
+    return {
+      close: () => {
+        isClosedManually = true
+        localListeners.delete(listener)
+      },
+      getSocket: () => null,
+    }
+  }
 
   const connect = () => {
     if (isClosedManually) return
@@ -123,20 +258,32 @@ export function connectWebSocket({ onMessage, onOpen, onClose, onError }) {
       }
 
       ws.onerror = (err) => {
-        if (onError) onError(err)
+        // Fallback gracefully on static hosts
+        if (!isLocalFallback) {
+          console.warn('[SHRAVAN] WebSocket connection error. Switching to local state broadcaster.')
+          isLocalFallback = true
+          localListeners.add(listener)
+          if (onOpen) onOpen({ type: 'open' })
+          if (onMessage) onMessage(localOrchestrator.state())
+        }
       }
 
       ws.onclose = (evt) => {
         if (onClose) onClose(evt)
-        if (!isClosedManually) {
-          // Exponential backoff reconnect: 1s, 2s, 4s, max 8s
+        if (!isClosedManually && !isLocalFallback) {
           const delay = Math.min(1000 * Math.pow(2, retryCount), 8000)
           retryCount++
           reconnectTimer = setTimeout(connect, delay)
         }
       }
     } catch (err) {
-      if (onError) onError(err)
+      if (!isLocalFallback) {
+        console.warn('[SHRAVAN] WebSocket initialization error. Switching to local state broadcaster.')
+        isLocalFallback = true
+        localListeners.add(listener)
+        if (onOpen) onOpen({ type: 'open' })
+        if (onMessage) onMessage(localOrchestrator.state())
+      }
     }
   }
 
@@ -146,9 +293,8 @@ export function connectWebSocket({ onMessage, onOpen, onClose, onError }) {
     close: () => {
       isClosedManually = true
       if (reconnectTimer) clearTimeout(reconnectTimer)
-      if (ws) {
-        ws.close()
-      }
+      if (ws) ws.close()
+      localListeners.delete(listener)
     },
     getSocket: () => ws,
   }
