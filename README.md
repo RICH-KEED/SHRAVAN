@@ -11,9 +11,11 @@
 [![React](https://img.shields.io/badge/Frontend-React%2018-61DAFB?style=flat&logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Bundler-Vite%205-646CFF?style=flat&logo=vite)](https://vitejs.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-000000?style=flat&logo=vercel)](https://vercel.com/)
+[![Vercel Deployment](https://img.shields.io/badge/Live%20Demo-frontend--gules--nu--23.vercel.app-000000?style=flat&logo=vercel)](https://frontend-gules-nu-23.vercel.app)
 
 **Observe → Remember → Predict → Decide → Adapt**
+
+🌐 **Live Console**: [frontend-gules-nu-23.vercel.app](https://frontend-gules-nu-23.vercel.app)
 
 </div>
 
